@@ -45,6 +45,10 @@ menubar-guard hide com.microsoft.OneDrive-mac Item-1
 
 # Preview without touching anything
 menubar-guard --dry-run hide com.jamf.connect
+
+# 4. Prove the invariant holds — every icon pinned or in the drawer,
+#    every pinned app alive. Non-zero exit on any violation (CI-friendly).
+menubar-guard verify
 ```
 
 `scan` output looks like:
@@ -66,6 +70,21 @@ POSITION   STATE   DOMAIN                                       ITEM
 | `> divider` (e.g. 5500+) | Ice's hidden drawer — click the Ice icon to reveal |
 
 New apps spawn their icon at the far left, which lands in the hidden drawer automatically — so future installs can never silently lose an icon either.
+
+## Verify & test
+
+`menubar-guard verify` asserts the invariant this tool exists for: **no icon can silently disappear**. It checks that every third-party item is either pinned right (position ≤ 450) or in Ice's drawer (position > divider), that every pinned item's owning app is actually running (Electron helpers count), that Ice itself is alive, and that the always-visible strip isn't over capacity. Exit code 0 = invariant holds; run it from cron/CI if you're paranoid.
+
+The repo ships a formal test suite — `tests/run-tests.sh` — that runs 43 assertions against a synthetic Mac built from shimmed `defaults`, `pgrep`, `pkill`, `open`, and `mdfind`. It never touches your real preferences or processes:
+
+```sh
+./tests/run-tests.sh   # -> 43 passed, 0 failed
+```
+
+## Stubborn apps & system icons
+
+- Some apps (notably **Google Drive**) rewrite their own status-item position when they relaunch, undoing a `hide`. Re-run `hide` — or add a `verify` cron so you find out immediately. Their hint sticks until the app decides otherwise.
+- **Apple's Control Center modules** (Bluetooth, Sound, Now Playing, ...) can't be managed by Ice or this tool — macOS owns them. If the visible strip is tight, set modules you don't need permanently to "Show When Active" in System Settings → Control Center; they stay one click away inside Control Center itself. If a module is toggled on but never draws, its status-item record is orphaned — flip its checkbox off and on in System Settings to force recreation.
 
 ## Caveats
 

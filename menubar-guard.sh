@@ -20,7 +20,7 @@
 
 set -eu
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 ICE_DOMAIN="com.jordanbaird.Ice"
 ICE_DIVIDER_KEY="NSStatusItem Preferred Position Ice.ControlItem.Hidden"
 POS_PREFIX="NSStatusItem Preferred Position"
@@ -29,6 +29,9 @@ POS_PREFIX="NSStatusItem Preferred Position"
 SKIP_RESTART="com.anthropic.claudefordesktop"
 DRY_RUN=0
 NO_RESTART=0
+# verify tuning (override via environment)
+PIN_MAX=${MG_PIN_MAX:-450}      # shown items must sit at position <= PIN_MAX
+MAX_SHOWN=${MG_MAX_SHOWN:-13}   # rough capacity of the visible strip (notch)
 
 usage() {
   cat <<'EOF'
@@ -38,6 +41,7 @@ USAGE
   menubar-guard scan                           List all third-party status items
   menubar-guard pin  <bundle-id> [item] [pos]  Pin icon to the always-visible right
   menubar-guard hide <bundle-id> [item] [pos]  Move icon into Ice's hidden drawer
+  menubar-guard verify                         Assert the no-lost-icons invariant
   menubar-guard divider                        Print Ice's divider position
 
 OPTIONS
@@ -95,6 +99,13 @@ cmd_scan() {
 
 app_path_for() {
   mdfind "kMDItemCFBundleIdentifier == '$1'" 2>/dev/null | grep -m1 '\.app$' || true
+}
+
+app_running() { # $1 = executable name, $2 = .app path
+  # Exact process name first; fall back to any process launched from inside
+  # the bundle (Electron apps report helper names, not the app name).
+  pgrep -xq "$1" 2>/dev/null && return 0
+  pgrep -qf "$2/" 2>/dev/null
 }
 
 collides() {
@@ -166,6 +177,76 @@ cmd_hide() {
   apply "$dom" "$item" "$pos" "hide (Ice drawer)"
 }
 
+list_items() { # tab-separated rows: pos <TAB> domain <TAB> item
+  local d line item pos
+  for d in $(defaults domains | tr ',' ' '); do
+    case "$d" in (com.apple.*) continue ;; esac
+    defaults read "$d" 2>/dev/null | grep -F "$POS_PREFIX" | while IFS= read -r line; do
+      item=$(printf '%s' "$line" | sed -E 's/.*Preferred Position ([^"]+)" *=.*/\1/')
+      pos=$(printf '%s' "$line" | sed -E 's/.*= *"?(-?[0-9.]+)"?;?$/\1/')
+      printf '%s\t%s\t%s\n' "$pos" "$d" "$item"
+    done
+  done
+}
+
+cmd_verify() {
+  # Invariant: every third-party status item is either pinned right
+  # (pos <= PIN_MAX, owning app running) or in Ice's drawer (pos > divider).
+  # Anything in between is in the trim zone and may silently disappear.
+  local div fails=0 warns=0 shown_tp=0 rows pos d item app exe cc18 total
+  div=$(divider_pos)
+  if pgrep -xq Ice 2>/dev/null; then
+    echo "PASS  Ice is running (drawer available)"
+  elif [ "$div" = "100000" ]; then
+    echo "WARN  Ice not detected - no drawer; only pinned items are protected"
+    warns=$((warns+1))
+  else
+    echo "FAIL  Ice is installed but NOT running - drawer items are unreachable"
+    fails=$((fails+1))
+  fi
+  rows=$(list_items)
+  while IFS="$(printf '\t')" read -r pos d item; do
+    [ -n "$pos" ] || continue
+    [ "$d" = "$ICE_DOMAIN" ] && continue
+    if awk -v p="$pos" -v m="$PIN_MAX" 'BEGIN{exit !(p<=m)}'; then
+      shown_tp=$((shown_tp+1))
+      app=$(app_path_for "$d")
+      if [ -z "$app" ]; then
+        echo "WARN  $d ($item) pinned at $pos - owning app not found on disk"
+        warns=$((warns+1))
+      else
+        exe=$(defaults read "$app/Contents/Info" CFBundleExecutable 2>/dev/null \
+              || basename "$app" .app)
+        if app_running "$exe" "$app"; then
+          echo "PASS  $d ($item) pinned at $pos, app running"
+        else
+          echo "FAIL  $d ($item) pinned at $pos but app NOT running - icon absent"
+          fails=$((fails+1))
+        fi
+      fi
+    elif awk -v p="$pos" -v dd="$div" 'BEGIN{exit !(p>dd)}'; then
+      echo "PASS  $d ($item) in drawer at $pos"
+    else
+      echo "FAIL  $d ($item) at $pos - TRIM ZONE ($PIN_MAX..$div): may vanish. Run pin or hide."
+      fails=$((fails+1))
+    fi
+  done <<VERIFY_EOF
+$rows
+VERIFY_EOF
+  cc18=$(defaults -currentHost read com.apple.controlcenter 2>/dev/null | grep -c '= 18' || true)
+  cc18=${cc18:-0}
+  total=$((shown_tp + cc18 + 5)) # +5: battery, wifi, spotlight, control center, clock
+  if [ "$total" -gt "$MAX_SHOWN" ]; then
+    echo "WARN  ~$total always-visible items > capacity $MAX_SHOWN - overflow risk. Hide something or set Control Center modules to 'Show When Active'."
+    warns=$((warns+1))
+  else
+    echo "PASS  visible-strip load ~$total/$MAX_SHOWN"
+  fi
+  echo "---"
+  echo "verify: $fails failure(s), $warns warning(s)"
+  [ "$fails" -eq 0 ]
+}
+
 main() {
   local cmd="" a1="" a2="" a3="" a
   for a in "$@"; do
@@ -184,6 +265,7 @@ main() {
   done
   case "${cmd:-help}" in
     scan) cmd_scan ;;
+    verify) cmd_verify ;;
     divider) divider_pos ;;
     pin)
       [ -n "$a1" ] || { echo "pin needs a bundle id (see: menubar-guard scan)" >&2; exit 1; }

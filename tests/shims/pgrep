@@ -1,0 +1,23 @@
+#!/bin/bash
+# Test shim for pgrep. "Running" state lives in $SHIM_STATE/running.txt:
+# each line is a process name OR a path fragment (for -f matching).
+FULL=0; pat=""
+for a in "$@"; do
+  case "$a" in
+    -*f*) FULL=1 ;;
+    -*) ;;
+    *) pat=$a ;;
+  esac
+done
+RT="${SHIM_STATE:?}/running.txt"
+[ -f "$RT" ] || exit 1
+if [ "$FULL" -eq 1 ]; then
+  while IFS= read -r l; do
+    [ -n "$l" ] || continue
+    case "$pat" in *"$l"*) exit 0 ;; esac
+    case "$l" in *"$pat"*) exit 0 ;; esac
+  done <"$RT"
+  exit 1
+else
+  grep -qxF "$pat" "$RT"
+fi

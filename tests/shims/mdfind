@@ -1,0 +1,7 @@
+#!/bin/bash
+# Test shim for mdfind: maps bundle ids to app paths via $SHIM_STATE/apps.txt
+# (lines: "<bundle-id><TAB><app-path>"). Query looks like:
+#   kMDItemCFBundleIdentifier == 'com.example.App'
+bid=$(printf '%s' "$*" | sed -E "s/.*'([^']+)'.*/\1/")
+awk -F'\t' -v b="$bid" '$1==b{print $2}' "${SHIM_STATE:?}/apps.txt" 2>/dev/null
+exit 0

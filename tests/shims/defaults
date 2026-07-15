@@ -1,0 +1,49 @@
+#!/bin/bash
+# Test shim for /usr/bin/defaults. Backed by flat files in $MG_TEST_STORE.
+# Store: one file per domain (slashes/colons/spaces -> _), lines "KEY=VALUE".
+# The manifest _domains lists real domain names for `defaults domains`.
+STORE="${MG_TEST_STORE:?MG_TEST_STORE not set}"
+enc() { printf '%s' "$1" | tr '/: ' '___'; }
+[ "$1" = "-currentHost" ] && shift   # host-level treated same in tests
+cmd=$1; shift || true
+case "$cmd" in
+  domains)
+    [ -s "$STORE/_domains" ] || exit 0
+    paste -sd, - <"$STORE/_domains" | sed 's/,/, /g'
+    ;;
+  read)
+    dom=$1; key=${2:-}
+    f="$STORE/$(enc "$dom").txt"
+    [ -f "$f" ] || { echo "shim: domain $dom not found" >&2; exit 1; }
+    if [ -z "$key" ]; then
+      echo "{"
+      while IFS= read -r line; do
+        k=${line%%=*}; v=${line#*=}
+        printf '    "%s" = %s;\n' "$k" "$v"
+      done <"$f"
+      echo "}"
+    else
+      v=$(grep -F "$key=" "$f" | head -1 | cut -d= -f2-)
+      [ -n "$v" ] || { echo "shim: key not found" >&2; exit 1; }
+      printf '%s\n' "$v"
+    fi
+    ;;
+  write)
+    dom=$1; key=$2; val=$4   # $3 is the type flag (-float/-int/-bool)
+    f="$STORE/$(enc "$dom").txt"
+    grep -qxF "$dom" "$STORE/_domains" 2>/dev/null || echo "$dom" >>"$STORE/_domains"
+    tmp="$f.tmp"; : >"$tmp"
+    [ -f "$f" ] && grep -vF "$key=" "$f" >>"$tmp" || true
+    echo "$key=$val" >>"$tmp"
+    mv "$tmp" "$f"
+    echo "defaults write $dom $key $val" >>"${SHIM_LOG:-/dev/null}"
+    ;;
+  delete)
+    dom=$1; key=${2:-}
+    f="$STORE/$(enc "$dom").txt"
+    if [ -z "$key" ]; then rm -f "$f"; else
+      tmp="$f.tmp"; grep -vF "$key=" "$f" >"$tmp" 2>/dev/null || true; mv "$tmp" "$f"
+    fi
+    ;;
+  *) echo "shim defaults: unsupported: $cmd" >&2; exit 64 ;;
+esac
