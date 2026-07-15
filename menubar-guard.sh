@@ -20,7 +20,7 @@
 
 set -eu
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 ICE_DOMAIN="com.jordanbaird.Ice"
 ICE_DIVIDER_KEY="NSStatusItem Preferred Position Ice.ControlItem.Hidden"
 POS_PREFIX="NSStatusItem Preferred Position"
@@ -152,6 +152,10 @@ bounce() {
 
 apply() {
   local dom=$1 item=$2 pos=$3 what=$4
+  case "$dom" in (com.apple.*)
+    echo "refusing: $dom is a macOS system item. Its visibility is whatever you chose in System Settings (Control Center / Menu Bar) - this tool never overrides that choice." >&2
+    exit 2 ;;
+  esac
   echo "$what: $dom / $item -> position $pos"
   if [ "$DRY_RUN" = 1 ]; then
     echo "  (dry run - nothing written)"

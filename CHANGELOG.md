@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 — 2026-07-15
+
+- **System items are sacred**: `pin`/`hide` now refuse `com.apple.*` domains (exit 2). The user's System Settings choices for Bluetooth, Sound, Now Playing, Display, etc. are never overridden.
+- `verify` is provably agnostic to Control Center configuration — new tests seed CC modules in arbitrary states and assert identical results (capacity estimate stays informational).
+- Test suite grows to 52 assertions.
+
 ## 1.1.0 — 2026-07-15
 
 - New `verify` command — asserts the no-lost-icons invariant and exits non-zero on violations:

@@ -138,6 +138,35 @@ run "$MG" pin org.ghost.app
 check "missing-app: warns manual relaunch"  contains "relaunch it manually"
 check "missing-app: no pkill attempted"     log_lacks "pkill"
 
+# ------------------------------------------------- system items are sacred
+t_setup
+seed_ice_divider 714
+run "$MG" pin com.apple.controlcenter Battery
+check "guard: pin refuses com.apple.*"      contains "refusing"
+check "guard: pin exits 2"                  rc_is 2
+check "guard: nothing written"              test -z "$(store_val com.apple.controlcenter 'NSStatusItem Preferred Position Battery')"
+check "guard: no process touched"           log_lacks "pkill"
+
+t_setup
+seed_ice_divider 714
+run "$MG" hide com.apple.TextInputMenuAgent
+check "guard: hide refuses com.apple.*"     contains "refusing"
+check "guard: hide exits 2"                 rc_is 2
+
+t_setup   # verify must be agnostic to the user's Control Center choices
+seed_ice_divider 714
+seed_running Ice
+seed_key net.sf.Jumpcut "NSStatusItem Preferred Position JumpcutStatusItem" 250
+seed_app net.sf.Jumpcut /Apps/Jumpcut.app Jumpcut
+seed_running Jumpcut
+seed_key com.apple.controlcenter "NSStatusItem Preferred Position Bluetooth" 528
+seed_key com.apple.controlcenter "Sound" 18
+seed_key com.apple.controlcenter "NowPlaying" 8
+run "$MG" verify
+check "verify/cc-agnostic: system rows ignored"  not_contains "com.apple.controlcenter"
+check "verify/cc-agnostic: no FAIL from CC"      contains "0 failure(s)"
+check "verify/cc-agnostic: exits 0"              rc_is 0
+
 # ---------------------------------------------------------------- verify
 t_setup
 seed_ice_divider 714

@@ -75,16 +75,16 @@ New apps spawn their icon at the far left, which lands in the hidden drawer auto
 
 `menubar-guard verify` asserts the invariant this tool exists for: **no icon can silently disappear**. It checks that every third-party item is either pinned right (position ≤ 450) or in Ice's drawer (position > divider), that every pinned item's owning app is actually running (Electron helpers count), that Ice itself is alive, and that the always-visible strip isn't over capacity. Exit code 0 = invariant holds; run it from cron/CI if you're paranoid.
 
-The repo ships a formal test suite — `tests/run-tests.sh` — that runs 43 assertions against a synthetic Mac built from shimmed `defaults`, `pgrep`, `pkill`, `open`, and `mdfind`. It never touches your real preferences or processes:
+The repo ships a formal test suite — `tests/run-tests.sh` — that runs 52 assertions against a synthetic Mac built from shimmed `defaults`, `pgrep`, `pkill`, `open`, and `mdfind`. It never touches your real preferences or processes:
 
 ```sh
-./tests/run-tests.sh   # -> 43 passed, 0 failed
+./tests/run-tests.sh   # -> 52 passed, 0 failed
 ```
 
 ## Stubborn apps & system icons
 
 - Some apps (notably **Google Drive**) rewrite their own status-item position when they relaunch, undoing a `hide`. Re-run `hide` — or add a `verify` cron so you find out immediately. Their hint sticks until the app decides otherwise.
-- **Apple's Control Center modules** (Bluetooth, Sound, Now Playing, ...) can't be managed by Ice or this tool — macOS owns them. If the visible strip is tight, set modules you don't need permanently to "Show When Active" in System Settings → Control Center; they stay one click away inside Control Center itself. If a module is toggled on but never draws, its status-item record is orphaned — flip its checkbox off and on in System Settings to force recreation.
+- **Apple's Control Center modules** (Bluetooth, Sound, Now Playing, ...) belong to the user, full stop. `pin` and `hide` **refuse** `com.apple.*` domains (exit 2), and `verify` treats your Control Center choices as ground truth — it works identically whatever you picked for Display/Sound/Now Playing, and only reports an informational capacity estimate. If the strip is tight, *you* can choose "Show When Active" for modules in System Settings → Control Center; the tool will never do it for you. If a module is toggled on but never draws, its status-item record is orphaned — flip its checkbox off and on in System Settings to force recreation.
 
 ## Caveats
 
