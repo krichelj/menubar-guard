@@ -36,7 +36,8 @@ run "$MG" pin org.example.app
 check "pin: default slot 250"               contains "position 250"
 check "pin: hint written to prefs"          test "$(store_val org.example.app 'NSStatusItem Preferred Position Item-0')" = "250"
 check "pin: app relaunched (pkill)"         log_has "pkill -x Example"
-check "pin: app relaunched (open)"          log_has "open -g -j -b org.example.app"
+check "pin: app relaunched (open)"          log_has "open -g -b org.example.app"
+check "pin: never launch-hidden (-j)"       log_lacks " -j "
 check "pin: exits 0"                        rc_is 0
 
 # ------------------------------------------------- pin collision avoidance
@@ -109,7 +110,8 @@ check "pin-ice: position written"           test "$(store_val com.jordanbaird.Ic
 check "pin-ice: ShowIceIcon forced on"      test "$(store_val com.jordanbaird.Ice 'ShowIceIcon')" = "1"
 check "pin-ice: item unsuppressed"          test "$(store_val com.jordanbaird.Ice 'NSStatusItem Visible Ice.ControlItem.Visible')" = "1"
 check "pin-ice: Ice relaunched (pkill)"     log_has "pkill -x Ice"
-check "pin-ice: Ice relaunched (open)"      log_has "open -g -j -b com.jordanbaird.Ice"
+check "pin-ice: Ice relaunched (open)"      log_has "open -g -b com.jordanbaird.Ice"
+check "pin-ice: never launch-hidden (-j)"   log_lacks " -j "
 
 t_setup
 seed_ice_divider 714

@@ -20,7 +20,7 @@
 
 set -eu
 
-VERSION="1.4.0"
+VERSION="1.4.1"
 ICE_DOMAIN="com.jordanbaird.Ice"
 ICE_DIVIDER_KEY="NSStatusItem Preferred Position Ice.ControlItem.Hidden"
 POS_PREFIX="NSStatusItem Preferred Position"
@@ -148,7 +148,10 @@ bounce() {
   echo "  relaunching $(basename "$app") ..."
   pkill -x "$exe" 2>/dev/null || true
   sleep 1
-  open -g -j -b "$dom" 2>/dev/null || open -g "$app"
+  # -g: don't steal focus. Deliberately NOT -j (launch-hidden): a hidden app
+  # can refuse to present its panels - Ice's drawer bar, for one, silently
+  # fails to appear when Ice is relaunched in the hidden state.
+  open -g -b "$dom" 2>/dev/null || open -g "$app"
 }
 
 guard_system() {

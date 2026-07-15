@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1 — 2026-07-15
+
+- Fix: app relaunches no longer use `open -j` (launch-hidden). macOS treats such apps as hidden (like ⌘H) and they can silently refuse to present panels — after `pin-ice` relaunched Ice hidden, clicking the Ice button produced no drawer. Relaunches now use `open -g -b` only; tests assert `-j` never appears in any relaunch.
+
 ## 1.4.0 — 2026-07-15
 
 - **Scenario suite** (`tests/run-scenarios.sh`): merged multi-step behaviours chained on one evolving synthetic Mac — messy machine → full cleanup → idempotent re-run → stubborn app rewrites itself → Ice stops/uninstalls/returns → new app arrives → Control Center churn → dry-run sweep → system-item guard. 51 assertions.
