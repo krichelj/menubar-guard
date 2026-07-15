@@ -80,11 +80,16 @@ New apps spawn their icon at the far left, which lands in the hidden drawer auto
 
 `menubar-guard verify` asserts the invariant this tool exists for: **no icon can silently disappear**. It checks that every third-party item is either pinned right (position ≤ 450) or in Ice's drawer (position > divider), that every pinned item's owning app is actually running (Electron helpers count), that Ice itself is alive, and that the always-visible strip isn't over capacity. Exit code 0 = invariant holds; run it from cron/CI if you're paranoid.
 
-The repo ships a formal test suite — `tests/run-tests.sh` — that runs 52 assertions against a synthetic Mac built from shimmed `defaults`, `pgrep`, `pkill`, `open`, and `mdfind`. It never touches your real preferences or processes:
+The repo ships two formal suites that run against a synthetic Mac built from shimmed `defaults`, `pgrep`, `pkill`, `open`, and `mdfind` — they never touch your real preferences or processes:
+
+- `tests/run-tests.sh` — 75 isolated unit assertions (every command, flag, guard, and failure mode)
+- `tests/run-scenarios.sh` — 51 assertions across merged multi-step scenarios chained on one evolving machine: messy Mac → full cleanup → idempotent re-run → a stubborn app rewriting its own position → Ice stopping/uninstalling/returning → a new app arriving → Control Center churn → dry-run sweeps → the system-item guard
 
 ```sh
-./tests/run-tests.sh   # -> 52 passed, 0 failed
+./tests/run-all.sh   # -> 126 passed, 0 failed, ALL SUITES GREEN
 ```
+
+Running `pin`/`hide`/`pin-ice` twice is a proven no-op (no writes, no relaunches) — safe to put in cron or a login script.
 
 ## Stubborn apps & system icons
 

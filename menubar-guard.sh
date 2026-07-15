@@ -20,7 +20,7 @@
 
 set -eu
 
-VERSION="1.3.0"
+VERSION="1.4.0"
 ICE_DOMAIN="com.jordanbaird.Ice"
 ICE_DIVIDER_KEY="NSStatusItem Preferred Position Ice.ControlItem.Hidden"
 POS_PREFIX="NSStatusItem Preferred Position"
@@ -151,12 +151,20 @@ bounce() {
   open -g -j -b "$dom" 2>/dev/null || open -g "$app"
 }
 
-apply() {
-  local dom=$1 item=$2 pos=$3 what=$4
-  case "$dom" in (com.apple.*)
-    echo "refusing: $dom is a macOS system item. Its visibility is whatever you chose in System Settings (Control Center / Menu Bar) - this tool never overrides that choice." >&2
+guard_system() {
+  case "$1" in (com.apple.*)
+    echo "refusing: $1 is a macOS system item. Its visibility is whatever you chose in System Settings (Control Center / Menu Bar) - this tool never overrides that choice." >&2
     exit 2 ;;
   esac
+}
+
+current_pos() { # domain item -> saved hint or empty
+  defaults read "$1" "$POS_PREFIX $2" 2>/dev/null || true
+}
+
+apply() {
+  local dom=$1 item=$2 pos=$3 what=$4
+  guard_system "$dom"
   echo "$what: $dom / $item -> position $pos"
   if [ "$DRY_RUN" = 1 ]; then
     echo "  (dry run - nothing written)"
@@ -167,25 +175,51 @@ apply() {
 }
 
 cmd_pin() {
-  local dom=$1 item=$2 pos=$3
-  [ -n "$pos" ] || pos=$(next_free 250 30)
+  local dom=$1 item=$2 pos=$3 cur
+  guard_system "$dom"
+  if [ -z "$pos" ]; then
+    cur=$(current_pos "$dom" "$item")
+    if [ -n "$cur" ] && awk -v p="$cur" -v m="$PIN_MAX" 'BEGIN{exit !(p<=m)}'; then
+      echo "pin: $dom / $item already pinned at $cur - nothing to do"
+      return 0
+    fi
+    pos=$(next_free 250 30)
+  fi
   apply "$dom" "$item" "$pos" "pin (always visible)"
 }
 
 cmd_hide() {
-  local dom=$1 item=$2 pos=$3 div
+  local dom=$1 item=$2 pos=$3 div cur
+  guard_system "$dom"
   div=$(divider_pos)
   if [ "$div" = "100000" ]; then
     echo "warning: Ice not detected - hidden items have no drawer to appear in" >&2
   fi
-  [ -n "$pos" ] || pos=$(next_free 5500 20)
+  if [ -z "$pos" ]; then
+    cur=$(current_pos "$dom" "$item")
+    if [ -n "$cur" ] && awk -v p="$cur" -v d="$div" 'BEGIN{exit !(p>d)}'; then
+      echo "hide: $dom / $item already in drawer at $cur - nothing to do"
+      return 0
+    fi
+    pos=$(next_free 5500 20)
+  fi
   apply "$dom" "$item" "$pos" "hide (Ice drawer)"
 }
 
 cmd_pin_ice() {
   # The Ice button IS the drawer handle - if it gets trimmed, every hidden
   # icon becomes unreachable. Pin it further right than anything else.
-  local pos=$1
+  local pos=$1 cur showicon icevis
+  if [ -z "$pos" ]; then
+    cur=$(current_pos "$ICE_DOMAIN" "Ice.ControlItem.Visible")
+    showicon=$(defaults read "$ICE_DOMAIN" ShowIceIcon 2>/dev/null || echo 1)
+    icevis=$(defaults read "$ICE_DOMAIN" "NSStatusItem Visible Ice.ControlItem.Visible" 2>/dev/null || echo 1)
+    if [ -n "$cur" ] && [ "$showicon" = "1" ] && [ "$icevis" = "1" ] \
+       && awk -v p="$cur" -v m="$PIN_MAX" 'BEGIN{exit !(p<=m)}'; then
+      echo "pin-ice: Ice button already pinned at $cur - nothing to do"
+      return 0
+    fi
+  fi
   [ -n "$pos" ] || pos=$(next_free 235 15)
   echo "pin-ice: Ice button -> position $pos (ShowIceIcon on, item visible)"
   if [ "$DRY_RUN" = 1 ]; then

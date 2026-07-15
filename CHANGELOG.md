@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0 — 2026-07-15
+
+- **Scenario suite** (`tests/run-scenarios.sh`): merged multi-step behaviours chained on one evolving synthetic Mac — messy machine → full cleanup → idempotent re-run → stubborn app rewrites itself → Ice stops/uninstalls/returns → new app arrives → Control Center churn → dry-run sweep → system-item guard. 51 assertions.
+- **Idempotency** (found by the scenarios): re-running `pin`/`hide`/`pin-ice` with no explicit position is now a no-op when the item is already on the right side of the line — previously repeat runs drifted positions and relaunched apps needlessly. Explicit positions still override.
+- Guard hardening: `com.apple.*` refusal now fires before the idempotency short-circuit, so pre-positioned system items can't slip through.
+- Test harness extracted to `tests/lib.sh`; `tests/run-all.sh` runs everything (75 unit + 51 scenario = 126 assertions).
+
 ## 1.3.0 — 2026-07-15
 
 - New `pin-ice` command: pins Ice's own button hard-right (default slot 235, rightmost of all pinned icons), forces `ShowIceIcon` on and un-suppresses the status item, then relaunches Ice. The Ice button is the drawer handle — if it gets trimmed, every hidden icon becomes unreachable.
