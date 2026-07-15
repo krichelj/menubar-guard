@@ -30,6 +30,7 @@ case "$cmd" in
     ;;
   write)
     dom=$1; key=$2; val=$4   # $3 is the type flag (-float/-int/-bool)
+    case "$val" in true|TRUE|YES) val=1 ;; false|FALSE|NO) val=0 ;; esac
     f="$STORE/$(enc "$dom").txt"
     grep -qxF "$dom" "$STORE/_domains" 2>/dev/null || echo "$dom" >>"$STORE/_domains"
     tmp="$f.tmp"; : >"$tmp"

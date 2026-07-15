@@ -138,6 +138,63 @@ run "$MG" pin org.ghost.app
 check "missing-app: warns manual relaunch"  contains "relaunch it manually"
 check "missing-app: no pkill attempted"     log_lacks "pkill"
 
+# ---------------------------------------------------------------- pin-ice
+t_setup
+seed_ice_divider 714
+seed_app com.jordanbaird.Ice /Apps/Ice.app Ice
+run "$MG" pin-ice
+check "pin-ice: default slot 235"           contains "position 235"
+check "pin-ice: position written"           test "$(store_val com.jordanbaird.Ice 'NSStatusItem Preferred Position Ice.ControlItem.Visible')" = "235"
+check "pin-ice: ShowIceIcon forced on"      test "$(store_val com.jordanbaird.Ice 'ShowIceIcon')" = "1"
+check "pin-ice: item unsuppressed"          test "$(store_val com.jordanbaird.Ice 'NSStatusItem Visible Ice.ControlItem.Visible')" = "1"
+check "pin-ice: Ice relaunched (pkill)"     log_has "pkill -x Ice"
+check "pin-ice: Ice relaunched (open)"      log_has "open -g -j -b com.jordanbaird.Ice"
+
+t_setup
+seed_ice_divider 714
+seed_key org.other.app "NSStatusItem Preferred Position Item-0" 235
+seed_app com.jordanbaird.Ice /Apps/Ice.app Ice
+run "$MG" pin-ice
+check "pin-ice/collision: 235 taken -> 250" contains "position 250"
+
+# ------------------------------------------- verify guards the Ice button
+t_setup
+seed_ice_divider 714
+seed_running Ice
+seed_key com.jordanbaird.Ice "ShowIceIcon" 1
+seed_key com.jordanbaird.Ice "NSStatusItem Visible Ice.ControlItem.Visible" 1
+seed_key com.jordanbaird.Ice "NSStatusItem Preferred Position Ice.ControlItem.Visible" 240
+run "$MG" verify
+check "verify/ice-btn: pinned PASSes"       contains "Ice button pinned at 240"
+check "verify/ice-btn: exits 0"             rc_is 0
+
+t_setup
+seed_ice_divider 714
+seed_running Ice
+seed_key com.jordanbaird.Ice "ShowIceIcon" 1
+seed_key com.jordanbaird.Ice "NSStatusItem Visible Ice.ControlItem.Visible" 1
+seed_key com.jordanbaird.Ice "NSStatusItem Preferred Position Ice.ControlItem.Visible" 500
+run "$MG" verify
+check "verify/ice-btn: trim zone FAILs"     contains "drawer handle itself can vanish"
+check "verify/ice-btn: trim zone exits 1"   rc_is 1
+
+t_setup
+seed_ice_divider 714
+seed_running Ice
+seed_key com.jordanbaird.Ice "ShowIceIcon" 0
+run "$MG" verify
+check "verify/ice-btn: disabled FAILs"      contains "ShowIceIcon=0"
+check "verify/ice-btn: disabled exits 1"    rc_is 1
+
+t_setup
+seed_ice_divider 714
+seed_running Ice
+seed_key com.jordanbaird.Ice "ShowIceIcon" 1
+seed_key com.jordanbaird.Ice "NSStatusItem Visible Ice.ControlItem.Visible" 0
+run "$MG" verify
+check "verify/ice-btn: suppressed FAILs"    contains "suppressed"
+check "verify/ice-btn: suppressed exits 1"  rc_is 1
+
 # ------------------------------------------------- system items are sacred
 t_setup
 seed_ice_divider 714

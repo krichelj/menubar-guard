@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0 — 2026-07-15
+
+- New `pin-ice` command: pins Ice's own button hard-right (default slot 235, rightmost of all pinned icons), forces `ShowIceIcon` on and un-suppresses the status item, then relaunches Ice. The Ice button is the drawer handle — if it gets trimmed, every hidden icon becomes unreachable.
+- `verify` now guards the Ice button in all scenarios: FAILs if it is disabled (`ShowIceIcon=0`), suppressed (`NSStatusItem Visible=0`), or parked in the trim zone; WARNs if it has no saved position. The button also counts toward the capacity estimate.
+- Test suite grows to 66 assertions.
+
 ## 1.2.0 — 2026-07-15
 
 - **System items are sacred**: `pin`/`hide` now refuse `com.apple.*` domains (exit 2). The user's System Settings choices for Bluetooth, Sound, Now Playing, Display, etc. are never overridden.

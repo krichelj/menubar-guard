@@ -46,8 +46,13 @@ menubar-guard hide com.microsoft.OneDrive-mac Item-1
 # Preview without touching anything
 menubar-guard --dry-run hide com.jamf.connect
 
-# 4. Prove the invariant holds — every icon pinned or in the drawer,
-#    every pinned app alive. Non-zero exit on any violation (CI-friendly).
+# 4. Pin Ice's own button — it's the drawer handle, so it gets the
+#    safest (rightmost) slot of all. Also re-enables it if disabled.
+menubar-guard pin-ice
+
+# 5. Prove the invariant holds — every icon pinned or in the drawer,
+#    the Ice button protected, every pinned app alive. Non-zero exit on
+#    any violation (CI-friendly).
 menubar-guard verify
 ```
 

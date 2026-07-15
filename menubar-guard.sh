@@ -20,7 +20,7 @@
 
 set -eu
 
-VERSION="1.2.0"
+VERSION="1.3.0"
 ICE_DOMAIN="com.jordanbaird.Ice"
 ICE_DIVIDER_KEY="NSStatusItem Preferred Position Ice.ControlItem.Hidden"
 POS_PREFIX="NSStatusItem Preferred Position"
@@ -41,6 +41,7 @@ USAGE
   menubar-guard scan                           List all third-party status items
   menubar-guard pin  <bundle-id> [item] [pos]  Pin icon to the always-visible right
   menubar-guard hide <bundle-id> [item] [pos]  Move icon into Ice's hidden drawer
+  menubar-guard pin-ice [pos]                  Pin Ice's own button hard-right
   menubar-guard verify                         Assert the no-lost-icons invariant
   menubar-guard divider                        Print Ice's divider position
 
@@ -181,6 +182,22 @@ cmd_hide() {
   apply "$dom" "$item" "$pos" "hide (Ice drawer)"
 }
 
+cmd_pin_ice() {
+  # The Ice button IS the drawer handle - if it gets trimmed, every hidden
+  # icon becomes unreachable. Pin it further right than anything else.
+  local pos=$1
+  [ -n "$pos" ] || pos=$(next_free 235 15)
+  echo "pin-ice: Ice button -> position $pos (ShowIceIcon on, item visible)"
+  if [ "$DRY_RUN" = 1 ]; then
+    echo "  (dry run - nothing written)"
+    return
+  fi
+  defaults write "$ICE_DOMAIN" ShowIceIcon -bool true
+  defaults write "$ICE_DOMAIN" "NSStatusItem Visible Ice.ControlItem.Visible" -bool true
+  defaults write "$ICE_DOMAIN" "$POS_PREFIX Ice.ControlItem.Visible" -float "$pos"
+  bounce "$ICE_DOMAIN"
+}
+
 list_items() { # tab-separated rows: pos <TAB> domain <TAB> item
   local d line item pos
   for d in $(defaults domains | tr ',' ' '); do
@@ -207,6 +224,29 @@ cmd_verify() {
   else
     echo "FAIL  Ice is installed but NOT running - drawer items are unreachable"
     fails=$((fails+1))
+  fi
+  # The Ice button itself: it is the drawer handle, so it must be pinned,
+  # enabled, and not suppressed - in every scenario.
+  if [ "$div" != "100000" ]; then
+    local showicon icevis icepos
+    showicon=$(defaults read "$ICE_DOMAIN" ShowIceIcon 2>/dev/null || echo 1)
+    icevis=$(defaults read "$ICE_DOMAIN" "NSStatusItem Visible Ice.ControlItem.Visible" 2>/dev/null || echo 1)
+    icepos=$(defaults read "$ICE_DOMAIN" "$POS_PREFIX Ice.ControlItem.Visible" 2>/dev/null || echo "")
+    if [ "$showicon" != "1" ]; then
+      echo "FAIL  Ice button disabled (ShowIceIcon=0) - drawer unreachable by click. Run pin-ice."
+      fails=$((fails+1))
+    elif [ "$icevis" != "1" ]; then
+      echo "FAIL  Ice button suppressed (NSStatusItem Visible=0). Run pin-ice."
+      fails=$((fails+1))
+    elif [ -z "$icepos" ]; then
+      echo "WARN  Ice button has no saved position yet - run pin-ice to lock it down"
+      warns=$((warns+1))
+    elif awk -v p="$icepos" -v m="$PIN_MAX" 'BEGIN{exit !(p<=m)}'; then
+      echo "PASS  Ice button pinned at $icepos"
+    else
+      echo "FAIL  Ice button at $icepos - TRIM ZONE: the drawer handle itself can vanish. Run pin-ice."
+      fails=$((fails+1))
+    fi
   fi
   rows=$(list_items)
   while IFS="$(printf '\t')" read -r pos d item; do
@@ -239,7 +279,9 @@ $rows
 VERIFY_EOF
   cc18=$(defaults -currentHost read com.apple.controlcenter 2>/dev/null | grep -c '= 18' || true)
   cc18=${cc18:-0}
-  total=$((shown_tp + cc18 + 5)) # +5: battery, wifi, spotlight, control center, clock
+  local icecount=0
+  [ "$div" = "100000" ] || icecount=1  # Ice's own button occupies a slot
+  total=$((shown_tp + cc18 + icecount + 5)) # +5: battery, wifi, spotlight, control center, clock
   if [ "$total" -gt "$MAX_SHOWN" ]; then
     echo "WARN  ~$total always-visible items > capacity $MAX_SHOWN - overflow risk. Hide something or set Control Center modules to 'Show When Active'."
     warns=$((warns+1))
@@ -270,6 +312,7 @@ main() {
   case "${cmd:-help}" in
     scan) cmd_scan ;;
     verify) cmd_verify ;;
+    pin-ice) cmd_pin_ice "$a1" ;;
     divider) divider_pos ;;
     pin)
       [ -n "$a1" ] || { echo "pin needs a bundle id (see: menubar-guard scan)" >&2; exit 1; }
